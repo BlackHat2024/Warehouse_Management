@@ -1,0 +1,1 @@
+ALTER TABLE orders ADD COLUMN decline_reason VARCHAR(500) NULL;
