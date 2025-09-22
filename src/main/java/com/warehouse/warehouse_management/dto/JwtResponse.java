@@ -1,2 +1,10 @@
-package com.warehouse.warehouse_management.dto;public class JwtResponse {
+package com.warehouse.warehouse_management.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+
+@Data
+@AllArgsConstructor
+public class JwtResponse {
+    private String token;
 }

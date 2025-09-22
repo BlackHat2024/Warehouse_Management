@@ -1,2 +1,11 @@
-package com.warehouse.warehouse_management.dto;public record UserDto() {
-}
+package com.warehouse.warehouse_management.dto;
+
+import com.warehouse.warehouse_management.entity.Role;
+
+public record UserDto(
+        Long id,
+        String name,
+        String surname,
+        String email,
+        Role role
+) {}

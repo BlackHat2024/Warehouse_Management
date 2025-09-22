@@ -1,1 +1,18 @@
-spring.application.name=Warehouse_Management
+spring:
+  application:
+    name: Warehouse_Management
+  datasource:
+    url: jdbc:mysql://localhost:3306/warehouse?createDatabaseIfNotExist=true
+    password:
+    username: root
+  jpa:
+    show-sql: true
+  jwt:
+    secret: ${JWT_SECRET}
+    accessTokenExpiration: 900
+    refreshTokenExpiration: 604800 #7 days
+server:
+  error:
+    include-exception: true
+    include-stacktrace: on_param
+
