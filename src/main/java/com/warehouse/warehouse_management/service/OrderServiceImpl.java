@@ -22,7 +22,7 @@ public class OrderServiceImpl implements OrderService {
     private final ItemRepository items;
     private final OrderItemRepository orderItems;
     private final UserRepository users;
-
+    static final BigDecimal DISCOUNT_RATE = new BigDecimal("0.9");
     @Override
     public Order createOrder(Long clientId){
         User client= users.findById(clientId).orElseThrow(()-> new BusinessRuleExceptions("Client Not Found"));
@@ -48,7 +48,12 @@ public class OrderServiceImpl implements OrderService {
             oi.setOrder(order);
             oi.setItem(item);
             oi.setRequestedQty(quantity);
-            oi.setPrice(calcPrice(item.getUnitPrice(), quantity));
+            if(quantity >= 100){
+                oi.setPrice(calcPrice(item.getUnitPrice().multiply(DISCOUNT_RATE), quantity));
+            }
+            else {
+                oi.setPrice(calcPrice(item.getUnitPrice(), quantity));
+            }
             oi.setVolume(calcVolume(item.getPackageVolume(), quantity));
             oi.setId(new OrderItemId(order.getOrderNumber(), item.getId()));
             order.addItem(oi);
@@ -71,7 +76,12 @@ public class OrderServiceImpl implements OrderService {
 
         Item item = oi.getItem();
         oi.setRequestedQty(quantity);
-        oi.setPrice(calcPrice(item.getUnitPrice(), quantity));
+        if(quantity >= 100){
+            oi.setPrice(calcPrice(item.getUnitPrice().multiply(DISCOUNT_RATE), quantity));
+        }
+        else {
+            oi.setPrice(calcPrice(item.getUnitPrice(), quantity));
+        }
         oi.setVolume(calcVolume(item.getPackageVolume(), quantity));
 
         return orders.save(order);
