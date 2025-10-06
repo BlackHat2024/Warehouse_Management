@@ -23,6 +23,8 @@ public class OrderServiceImpl implements OrderService {
     private final OrderItemRepository orderItems;
     private final UserRepository users;
     static final BigDecimal DISCOUNT_RATE = new BigDecimal("0.9");
+    static final BigDecimal MIN_ORDER_TOTAL_DISCOUNT = new BigDecimal("10000");
+    static final BigDecimal ORDERDISCOUNT = new BigDecimal("0.95");
     @Override
     public Order createOrder(Long clientId){
         User client= users.findById(clientId).orElseThrow(()-> new BusinessRuleExceptions("Client Not Found"));
@@ -109,6 +111,11 @@ public class OrderServiceImpl implements OrderService {
         }
         if (order.getItems().isEmpty()) {
             throw new BusinessRuleExceptions("Order must contain at least one item to submit");
+        }
+        if (orderItems.total(orderId).compareTo(MIN_ORDER_TOTAL_DISCOUNT) >= 0) {
+            order.setTotal(orderItems.total(orderId).multiply(ORDERDISCOUNT));
+        }else {
+            order.setTotal(orderItems.total(orderId));
         }
         order.setStatus(OrderStatus.AWAITING_APPROVAL);
         order.setSubmittedDate(LocalDateTime.now());

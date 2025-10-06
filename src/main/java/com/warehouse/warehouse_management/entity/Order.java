@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +27,9 @@ public class Order {
 
     @Column(name="submitted_date")
     private LocalDateTime submittedDate;
+
+    @Column(name = "total")
+    private BigDecimal total;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status")
