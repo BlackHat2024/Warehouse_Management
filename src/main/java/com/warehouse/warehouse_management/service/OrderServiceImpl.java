@@ -22,9 +22,7 @@ public class OrderServiceImpl implements OrderService {
     private final ItemRepository items;
     private final OrderItemRepository orderItems;
     private final UserRepository users;
-    static final BigDecimal DISCOUNT_RATE = new BigDecimal("0.9");
-    static final BigDecimal MIN_ORDER_TOTAL_DISCOUNT = new BigDecimal("10000");
-    static final BigDecimal ORDERDISCOUNT = new BigDecimal("0.95");
+
     @Override
     public Order createOrder(Long clientId , Priority priority) {
         User client= users.findById(clientId).orElseThrow(()-> new BusinessRuleExceptions("Client Not Found"));
@@ -52,10 +50,14 @@ public class OrderServiceImpl implements OrderService {
             oi.setItem(item);
             oi.setRequestedQty(quantity);
             if(quantity >= 100){
-                oi.setPrice(calcPrice(item.getUnitPrice().multiply(DISCOUNT_RATE), quantity));
+                oi.setPrice(calcPrice(item.getUnitPrice().multiply(java.math.BigDecimal.valueOf(0.9)), quantity));
             }
             else {
-                oi.setPrice(calcPrice(item.getUnitPrice(), quantity));
+                if(item.getQuantity()<20){
+                    oi.setPrice(calcPrice(item.getUnitPrice().multiply(java.math.BigDecimal.valueOf(1.02)), quantity));
+                }else {
+                    oi.setPrice(calcPrice(item.getUnitPrice(), quantity));
+                }
             }
             oi.setVolume(calcVolume(item.getPackageVolume(), quantity));
             oi.setId(new OrderItemId(order.getOrderNumber(), item.getId()));
@@ -64,9 +66,13 @@ public class OrderServiceImpl implements OrderService {
             long newQty = oi.getRequestedQty() + quantity;
             oi.setRequestedQty(newQty);
             if (newQty >= 100) {
-                oi.setPrice(calcPrice(item.getUnitPrice().multiply(DISCOUNT_RATE), newQty));
+                oi.setPrice(calcPrice(item.getUnitPrice().multiply(java.math.BigDecimal.valueOf(0.9)), newQty));
             } else {
-                oi.setPrice(calcPrice(item.getUnitPrice(), newQty));
+                if(item.getQuantity()<20){
+                    oi.setPrice(calcPrice(item.getUnitPrice().multiply(java.math.BigDecimal.valueOf(1.02)), newQty));
+                }else {
+                    oi.setPrice(calcPrice(item.getUnitPrice(), newQty));
+                }
             }
             oi.setVolume(calcVolume(item.getPackageVolume(), newQty));
         }
@@ -84,10 +90,14 @@ public class OrderServiceImpl implements OrderService {
         Item item = oi.getItem();
         oi.setRequestedQty(quantity);
         if(quantity >= 100){
-            oi.setPrice(calcPrice(item.getUnitPrice().multiply(DISCOUNT_RATE), quantity));
+            oi.setPrice(calcPrice(item.getUnitPrice().multiply(java.math.BigDecimal.valueOf(0.9)), quantity));
         }
         else {
-            oi.setPrice(calcPrice(item.getUnitPrice(), quantity));
+            if(item.getQuantity()<20){
+                oi.setPrice(calcPrice(item.getUnitPrice().multiply(java.math.BigDecimal.valueOf(1.02)), quantity));
+            }else {
+                oi.setPrice(calcPrice(item.getUnitPrice(), quantity));
+            }
         }
         oi.setVolume(calcVolume(item.getPackageVolume(), quantity));
 
@@ -117,8 +127,8 @@ public class OrderServiceImpl implements OrderService {
         if (order.getItems().isEmpty()) {
             throw new BusinessRuleExceptions("Order must contain at least one item to submit");
         }
-        if (orderItems.total(orderId).compareTo(MIN_ORDER_TOTAL_DISCOUNT) >= 0) {
-            order.setTotal(orderItems.total(orderId).multiply(ORDERDISCOUNT));
+        if (orderItems.total(orderId).compareTo(java.math.BigDecimal.valueOf(10000)) >= 0) {
+            order.setTotal(orderItems.total(orderId).multiply(java.math.BigDecimal.valueOf(0.95)));
         }else {
             order.setTotal(orderItems.total(orderId));
         }
