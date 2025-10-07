@@ -26,11 +26,12 @@ public class OrderServiceImpl implements OrderService {
     static final BigDecimal MIN_ORDER_TOTAL_DISCOUNT = new BigDecimal("10000");
     static final BigDecimal ORDERDISCOUNT = new BigDecimal("0.95");
     @Override
-    public Order createOrder(Long clientId){
+    public Order createOrder(Long clientId , Priority priority) {
         User client= users.findById(clientId).orElseThrow(()-> new BusinessRuleExceptions("Client Not Found"));
         Order order = new Order();
         order.setClient(client);
         order.setStatus(OrderStatus.CREATED);
+        order.setPriority(priority);
         order.setSubmittedDate(LocalDateTime.now());
         return orders.save(order);
     }

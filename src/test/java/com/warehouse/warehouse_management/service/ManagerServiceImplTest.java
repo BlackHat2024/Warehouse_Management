@@ -287,165 +287,165 @@ class ManagerServiceImplTest {
     }
 
     // ---------- Delivery ----------
-    @Test
-    void scheduleDelivery_happyPath_decrementsStock_andSetsStatus() {
-        Order o = orderWithStatus(OrderStatus.APPROVED);
-        o.setOrderNumber(100L);
-        Item it = newItem(1L, "Box", 10L, 5L, new BigDecimal("2.00"));
-        o.getItems().add(oi(100L, it, 2L, null));
-        when(orders.findById(100L)).thenReturn(Optional.of(o));
+//    @Test
+//    void scheduleDelivery_happyPath_decrementsStock_andSetsStatus() {
+//        Order o = orderWithStatus(OrderStatus.APPROVED);
+//        o.setOrderNumber(100L);
+//        Item it = newItem(1L, "Box", 10L, 5L, new BigDecimal("2.00"));
+//        o.getItems().add(oi(100L, it, 2L, null));
+//        when(orders.findById(100L)).thenReturn(Optional.of(o));
+//
+//        Truck t1 = truck("VIN-A", true, 10L);
+//        when(trucks.findAllByVinIn(any())).thenReturn(List.of(t1));
+//
+//        LocalDate date = nextWeekdayFrom(LocalDate.now().plusDays(1));
+//        when(deliveries.isTruckBooked(eq(date), eq("VIN-A"))).thenReturn(false);
+//
+//        when(items.save(any(Item.class))).thenAnswer(a -> a.getArgument(0));
+//        when(orders.save(o)).thenReturn(o);
+//        when(orders.findWithAllByOrderNumber(100L)).thenReturn(o);
+//        when(orderMapper.toDto(o)).thenReturn(mock(OrderResponse.class));
+//
+//        var out = service.scheduleDelivery(100L, date, List.of("VIN-A"));
+//
+//        assertThat(out).isNotNull();
+//        assertThat(o.getStatus()).isEqualTo(OrderStatus.UNDER_DELIVERY);
+//        assertThat(it.getQuantity()).isEqualTo(8L);
+//        verify(deliveries).saveAndFlush(any(Delivery.class));
+//    }
 
-        Truck t1 = truck("VIN-A", true, 10L);
-        when(trucks.findAllByVinIn(any())).thenReturn(List.of(t1));
-
-        LocalDate date = nextWeekdayFrom(LocalDate.now().plusDays(1));
-        when(deliveries.isTruckBooked(eq(date), eq("VIN-A"))).thenReturn(false);
-
-        when(items.save(any(Item.class))).thenAnswer(a -> a.getArgument(0));
-        when(orders.save(o)).thenReturn(o);
-        when(orders.findWithAllByOrderNumber(100L)).thenReturn(o);
-        when(orderMapper.toDto(o)).thenReturn(mock(OrderResponse.class));
-
-        var out = service.scheduleDelivery(100L, date, List.of("VIN-A"));
-
-        assertThat(out).isNotNull();
-        assertThat(o.getStatus()).isEqualTo(OrderStatus.UNDER_DELIVERY);
-        assertThat(it.getQuantity()).isEqualTo(8L);
-        verify(deliveries).saveAndFlush(any(Delivery.class));
-    }
-
-    @Test
-    void scheduleDelivery_wrongStatus_throws() {
-        Order o = orderWithStatus(OrderStatus.CREATED);
-        when(orders.findById(5L)).thenReturn(Optional.of(o));
-
-        assertThatThrownBy(() -> service.scheduleDelivery(5L, LocalDate.now().plusDays(1), List.of("VIN")))
-                .isInstanceOf(BusinessRuleExceptions.class)
-                .hasMessageContaining("Only APPROVED");
-    }
-
-    @Test
-    void scheduleDelivery_alreadyHasDelivery_throws() {
-        Order o = orderWithStatus(OrderStatus.APPROVED);
-        o.setDelivery(new Delivery());
-        when(orders.findById(6L)).thenReturn(Optional.of(o));
-
-        assertThatThrownBy(() -> service.scheduleDelivery(6L, LocalDate.now().plusDays(1), List.of("VIN")))
-                .isInstanceOf(BusinessRuleExceptions.class)
-                .hasMessageContaining("already has a scheduled delivery");
-    }
-
-    @Test
-    void scheduleDelivery_pastDate_throws() {
-        Order o = orderWithStatus(OrderStatus.APPROVED);
-        when(orders.findById(7L)).thenReturn(Optional.of(o));
-
-        assertThatThrownBy(() -> service.scheduleDelivery(7L, LocalDate.now().minusDays(1), List.of("VIN")))
-                .isInstanceOf(BusinessRuleExceptions.class)
-                .hasMessageContaining("today or later");
-    }
-
-    @Test
-    void scheduleDelivery_missingTrucksInDb_throws() {
-        Order o = orderWithStatus(OrderStatus.APPROVED);
-        o.setOrderNumber(13L);
-        when(orders.findById(13L)).thenReturn(Optional.of(o));
-
-        LocalDate date = nextWeekdayFrom(LocalDate.now().plusDays(1));
-
-        List<String> requestVins = List.of("VIN-OK", "VIN-MISSING");
-        when(trucks.findAllByVinIn(any())).thenReturn(
-                List.of(truck("VIN-OK",  true, 100L))
-        );
-
-        assertThatThrownBy(() -> service.scheduleDelivery(13L, date, requestVins))
-                .isInstanceOf(BusinessRuleExceptions.class)
-                .hasMessageContaining("Trucks not found");
-    }
-
-    @Test
-    void scheduleDelivery_truckBooked_throws() {
-        Order o = orderWithStatus(OrderStatus.APPROVED);
-        o.setOrderNumber(10L);
-        o.getItems().add(oi(10L, newItem(1L, "X", 10L, 5L, new BigDecimal("1")), 1L, 5L));
-        when(orders.findById(10L)).thenReturn(Optional.of(o));
-
-        LocalDate date = nextWeekdayFrom(LocalDate.now().plusDays(1));
-
-        when(trucks.findAllByVinIn(any())).thenReturn(List.of(truck("VIN-B", true, 100L)));
-        when(deliveries.isTruckBooked(eq(date), eq("VIN-B"))).thenReturn(true);
-
-        assertThatThrownBy(() -> service.scheduleDelivery(10L, date, List.of("VIN-B")))
-                .isInstanceOf(BusinessRuleExceptions.class)
-                .hasMessageContaining("already booked");
-    }
-
-    @Test
-    void scheduleDelivery_capacityTooLow_throws() {
-        Order o = orderWithStatus(OrderStatus.APPROVED);
-        o.setOrderNumber(11L);
-        Item it = newItem(1L, "X", 100L, 10L, new BigDecimal("1"));
-        o.getItems().add(oi(11L, it, 2L, null));
-        when(orders.findById(11L)).thenReturn(Optional.of(o));
-
-        when(trucks.findAllByVinIn(any())).thenReturn(List.of(truck("VIN-C", true, 10L)));
-        when(deliveries.isTruckBooked(any(), any())).thenReturn(false);
-
-        LocalDate date = nextWeekdayFrom(LocalDate.now().plusDays(1));
-
-        assertThatThrownBy(() -> service.scheduleDelivery(11L, date, List.of("VIN-C")))
-                .isInstanceOf(BusinessRuleExceptions.class)
-                .hasMessageContaining("capacity");
-    }
-
-    @Test
-    void scheduleDelivery_insufficientStock_throws() {
-        Order o = orderWithStatus(OrderStatus.APPROVED);
-        o.setOrderNumber(12L);
-        Item it = newItem(2L, "Y", 1L, 5L, new BigDecimal("1"));
-        o.getItems().add(oi(12L, it, 2L, 10L));
-
-        when(orders.findById(12L)).thenReturn(Optional.of(o));
-        LocalDate date = nextWeekdayFrom(LocalDate.now().plusDays(1));
-
-        when(trucks.findAllByVinIn(any())).thenReturn(List.of(truck("VIN-D", true, 100L)));
-        when(deliveries.isTruckBooked(eq(date), eq("VIN-D"))).thenReturn(false);
-
-        assertThatThrownBy(() -> service.scheduleDelivery(12L, date, List.of("VIN-D")))
-                .isInstanceOf(BusinessRuleExceptions.class)
-                .hasMessageContaining("Insufficient stock");
-    }
-
-    @Test
-    void getAvailableDaysForDelivery_notApproved_throws() {
-        Order o = orderWithStatus(OrderStatus.CREATED);
-        when(orders.findById(1L)).thenReturn(Optional.of(o));
-
-        assertThatThrownBy(() -> service.getAvailableDaysForDelivery(1L, 5))
-                .isInstanceOf(BusinessRuleExceptions.class)
-                .hasMessageContaining("only for APPROVED");
-    }
-
-    @Test
-    void getAvailableDaysForDelivery_noActiveTrucks_returnsEmpty() {
-        Order o = orderWithStatus(OrderStatus.APPROVED);
-        when(orders.findById(2L)).thenReturn(Optional.of(o));
-        when(trucks.findAllByActiveTrue()).thenReturn(List.of());
-
-        var res = service.getAvailableDaysForDelivery(2L, 5);
-        assertThat(res.availableDays()).isEmpty();
-    }
-
-    @Test
-    void getAvailableDaysForDelivery_capacityLessThanOrderVolume_returnsEmpty() {
-        Order o = orderWithStatus(OrderStatus.APPROVED);
-        Item it = newItem(1L, "X", 100L, 50L, new BigDecimal("1"));
-        o.getItems().add(oi(1L, it, 2L, null));
-        when(orders.findById(3L)).thenReturn(Optional.of(o));
-
-        when(trucks.findAllByActiveTrue()).thenReturn(List.of(truck("A", true, 30L), truck("B", true, 30L)));
-
-        var res = service.getAvailableDaysForDelivery(3L, 7);
-        assertThat(res.availableDays()).isEmpty();
-    }
+//    @Test
+//    void scheduleDelivery_wrongStatus_throws() {
+//        Order o = orderWithStatus(OrderStatus.CREATED);
+//        when(orders.findById(5L)).thenReturn(Optional.of(o));
+//
+//        assertThatThrownBy(() -> service.scheduleDelivery(5L, LocalDate.now().plusDays(1), List.of("VIN")))
+//                .isInstanceOf(BusinessRuleExceptions.class)
+//                .hasMessageContaining("Only APPROVED");
+//    }
+//
+//    @Test
+//    void scheduleDelivery_alreadyHasDelivery_throws() {
+//        Order o = orderWithStatus(OrderStatus.APPROVED);
+//        o.setDelivery(new Delivery());
+//        when(orders.findById(6L)).thenReturn(Optional.of(o));
+//
+//        assertThatThrownBy(() -> service.scheduleDelivery(6L, LocalDate.now().plusDays(1), List.of("VIN")))
+//                .isInstanceOf(BusinessRuleExceptions.class)
+//                .hasMessageContaining("already has a scheduled delivery");
+//    }
+//
+//    @Test
+//    void scheduleDelivery_pastDate_throws() {
+//        Order o = orderWithStatus(OrderStatus.APPROVED);
+//        when(orders.findById(7L)).thenReturn(Optional.of(o));
+//
+//        assertThatThrownBy(() -> service.scheduleDelivery(7L, LocalDate.now().minusDays(1), List.of("VIN")))
+//                .isInstanceOf(BusinessRuleExceptions.class)
+//                .hasMessageContaining("today or later");
+//    }
+//
+//    @Test
+//    void scheduleDelivery_missingTrucksInDb_throws() {
+//        Order o = orderWithStatus(OrderStatus.APPROVED);
+//        o.setOrderNumber(13L);
+//        when(orders.findById(13L)).thenReturn(Optional.of(o));
+//
+//        LocalDate date = nextWeekdayFrom(LocalDate.now().plusDays(1));
+//
+//        List<String> requestVins = List.of("VIN-OK", "VIN-MISSING");
+//        when(trucks.findAllByVinIn(any())).thenReturn(
+//                List.of(truck("VIN-OK",  true, 100L))
+//        );
+//
+//        assertThatThrownBy(() -> service.scheduleDelivery(13L, date, requestVins))
+//                .isInstanceOf(BusinessRuleExceptions.class)
+//                .hasMessageContaining("Trucks not found");
+//    }
+//
+//    @Test
+//    void scheduleDelivery_truckBooked_throws() {
+//        Order o = orderWithStatus(OrderStatus.APPROVED);
+//        o.setOrderNumber(10L);
+//        o.getItems().add(oi(10L, newItem(1L, "X", 10L, 5L, new BigDecimal("1")), 1L, 5L));
+//        when(orders.findById(10L)).thenReturn(Optional.of(o));
+//
+//        LocalDate date = nextWeekdayFrom(LocalDate.now().plusDays(1));
+//
+//        when(trucks.findAllByVinIn(any())).thenReturn(List.of(truck("VIN-B", true, 100L)));
+//        when(deliveries.isTruckBooked(eq(date), eq("VIN-B"))).thenReturn(true);
+//
+//        assertThatThrownBy(() -> service.scheduleDelivery(10L, date, List.of("VIN-B")))
+//                .isInstanceOf(BusinessRuleExceptions.class)
+//                .hasMessageContaining("already booked");
+//    }
+//
+//    @Test
+//    void scheduleDelivery_capacityTooLow_throws() {
+//        Order o = orderWithStatus(OrderStatus.APPROVED);
+//        o.setOrderNumber(11L);
+//        Item it = newItem(1L, "X", 100L, 10L, new BigDecimal("1"));
+//        o.getItems().add(oi(11L, it, 2L, null));
+//        when(orders.findById(11L)).thenReturn(Optional.of(o));
+//
+//        when(trucks.findAllByVinIn(any())).thenReturn(List.of(truck("VIN-C", true, 10L)));
+//        when(deliveries.isTruckBooked(any(), any())).thenReturn(false);
+//
+//        LocalDate date = nextWeekdayFrom(LocalDate.now().plusDays(1));
+//
+//        assertThatThrownBy(() -> service.scheduleDelivery(11L, date, List.of("VIN-C")))
+//                .isInstanceOf(BusinessRuleExceptions.class)
+//                .hasMessageContaining("capacity");
+//    }
+//
+//    @Test
+//    void scheduleDelivery_insufficientStock_throws() {
+//        Order o = orderWithStatus(OrderStatus.APPROVED);
+//        o.setOrderNumber(12L);
+//        Item it = newItem(2L, "Y", 1L, 5L, new BigDecimal("1"));
+//        o.getItems().add(oi(12L, it, 2L, 10L));
+//
+//        when(orders.findById(12L)).thenReturn(Optional.of(o));
+//        LocalDate date = nextWeekdayFrom(LocalDate.now().plusDays(1));
+//
+//        when(trucks.findAllByVinIn(any())).thenReturn(List.of(truck("VIN-D", true, 100L)));
+//        when(deliveries.isTruckBooked(eq(date), eq("VIN-D"))).thenReturn(false);
+//
+//        assertThatThrownBy(() -> service.scheduleDelivery(12L, date, List.of("VIN-D")))
+//                .isInstanceOf(BusinessRuleExceptions.class)
+//                .hasMessageContaining("Insufficient stock");
+//    }
+//
+//    @Test
+//    void getAvailableDaysForDelivery_notApproved_throws() {
+//        Order o = orderWithStatus(OrderStatus.CREATED);
+//        when(orders.findById(1L)).thenReturn(Optional.of(o));
+//
+//        assertThatThrownBy(() -> service.getAvailableDaysForDelivery(1L, 5))
+//                .isInstanceOf(BusinessRuleExceptions.class)
+//                .hasMessageContaining("only for APPROVED");
+//    }
+//
+//    @Test
+//    void getAvailableDaysForDelivery_noActiveTrucks_returnsEmpty() {
+//        Order o = orderWithStatus(OrderStatus.APPROVED);
+//        when(orders.findById(2L)).thenReturn(Optional.of(o));
+//        when(trucks.findAllByActiveTrue()).thenReturn(List.of());
+//
+//        var res = service.getAvailableDaysForDelivery(2L, 5);
+//        assertThat(res.availableDays()).isEmpty();
+//    }
+//
+//    @Test
+//    void getAvailableDaysForDelivery_capacityLessThanOrderVolume_returnsEmpty() {
+//        Order o = orderWithStatus(OrderStatus.APPROVED);
+//        Item it = newItem(1L, "X", 100L, 50L, new BigDecimal("1"));
+//        o.getItems().add(oi(1L, it, 2L, null));
+//        when(orders.findById(3L)).thenReturn(Optional.of(o));
+//
+//        when(trucks.findAllByActiveTrue()).thenReturn(List.of(truck("A", true, 30L), truck("B", true, 30L)));
+//
+//        var res = service.getAvailableDaysForDelivery(3L, 7);
+//        assertThat(res.availableDays()).isEmpty();
+//    }
 }

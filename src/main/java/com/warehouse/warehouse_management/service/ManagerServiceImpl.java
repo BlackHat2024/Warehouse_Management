@@ -149,6 +149,10 @@ public class ManagerServiceImpl implements ManagerService {
 
         validateBusinessDate(date);
 
+        if (o.getPriority() == Priority.URGENT) {
+            rescheduleLowerPriorityDeliveries(date, o.getPriority());
+        }
+
         List<Truck> free = trucks.findFreeTrucksOn(date, LocalDate.now());
         if (free.isEmpty())
             throw new BusinessRuleExceptions("No trucks are available for " + date);
@@ -238,20 +242,40 @@ public class ManagerServiceImpl implements ManagerService {
             LocalDate d = start.plusDays(i);
             if (isWeekend(d)) continue;
 
-
             var deliveriesThatDay = deliveries.findByScheduledDate(d);
-            var bookedVins = deliveriesThatDay.stream()
-                    .flatMap(del -> del.getTrucks().stream())
-                    .map(Truck::getVin)
-                    .collect(java.util.stream.Collectors.toSet());
 
-            long freeCapacity = active.stream()
-                    .filter(t -> !bookedVins.contains(t.getVin()))
-                    .mapToLong(Truck::getContainerVolume)
-                    .sum();
+            if (o.getPriority() == Priority.URGENT) {
+                var urgentDeliveries = deliveriesThatDay.stream()
+                        .filter(del -> del.getOrder().getPriority() == Priority.URGENT)
+                        .toList();
+                
+                var bookedUrgentVins = urgentDeliveries.stream()
+                        .flatMap(del -> del.getTrucks().stream())
+                        .map(Truck::getVin)
+                        .collect(java.util.stream.Collectors.toSet());
 
-            if (freeCapacity >= orderVolume) {
-                available.add(d);
+                long freeCapacity = active.stream()
+                        .filter(t -> !bookedUrgentVins.contains(t.getVin()))
+                        .mapToLong(Truck::getContainerVolume)
+                        .sum();
+
+                if (freeCapacity >= orderVolume) {
+                    available.add(d);
+                }
+            } else {
+                var bookedVins = deliveriesThatDay.stream()
+                        .flatMap(del -> del.getTrucks().stream())
+                        .map(Truck::getVin)
+                        .collect(java.util.stream.Collectors.toSet());
+
+                long freeCapacity = active.stream()
+                        .filter(t -> !bookedVins.contains(t.getVin()))
+                        .mapToLong(Truck::getContainerVolume)
+                        .sum();
+
+                if (freeCapacity >= orderVolume) {
+                    available.add(d);
+                }
             }
         }
 
@@ -364,6 +388,31 @@ public class ManagerServiceImpl implements ManagerService {
 
         long sum = chosen.stream().mapToLong(Truck::getContainerVolume).sum();
         return (sum >= orderVolume) ? chosen : List.of();
+    }
+
+    private void rescheduleLowerPriorityDeliveries(LocalDate date, Priority newOrderPriority) {
+        List<Delivery> lowerPriorityDeliveries = deliveries.lockAllByDateAndPriority(date, Priority.NORMAL);
+
+        if (newOrderPriority == Priority.URGENT) {
+            for (Delivery delivery : lowerPriorityDeliveries) {
+                Order order = delivery.getOrder();
+
+                LocalDate nextDate = date.plusDays(1);
+                while (isWeekend(nextDate) || !canScheduleOnDate(order, nextDate)) {
+                    nextDate = nextDate.plusDays(1);
+                }
+
+                delivery.setScheduledDate(nextDate);
+                deliveries.save(delivery);
+            }
+        }
+    }
+
+    private boolean canScheduleOnDate(Order order, LocalDate date) {
+        List<Truck> availableTrucks = trucks.findFreeTrucksOn(date, LocalDate.now());
+        long orderVolume = calcOrderVolume(order);
+        List<Truck> selected = selectTrucksByCapacity(availableTrucks, orderVolume);
+        return !selected.isEmpty();
     }
 
 }

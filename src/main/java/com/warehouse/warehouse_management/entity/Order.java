@@ -35,6 +35,10 @@ public class Order {
     @Column(name = "status")
     private OrderStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "priority")
+    private Priority priority;
+
     @OneToMany(mappedBy="order", cascade=CascadeType.ALL, orphanRemoval=true)
     private List<OrderItem> items = new ArrayList<>();
 

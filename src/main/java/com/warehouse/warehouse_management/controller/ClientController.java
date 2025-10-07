@@ -5,6 +5,7 @@ import com.warehouse.warehouse_management.dto.OrderResponse;
 import com.warehouse.warehouse_management.dto.UpdateQuantityRequest;
 import com.warehouse.warehouse_management.entity.Order;
 import com.warehouse.warehouse_management.entity.OrderStatus;
+import com.warehouse.warehouse_management.entity.Priority;
 import com.warehouse.warehouse_management.mapper.OrderMapper;
 import com.warehouse.warehouse_management.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,8 +26,9 @@ public class ClientController {
 
     @PostMapping("/orders")
     @Operation(summary = "Create new order")
-    public OrderResponse createOrder(@AuthenticationPrincipal Long clientId) {
-        Order order = orderService.createOrder(clientId);
+    public OrderResponse createOrder(@AuthenticationPrincipal Long clientId,
+                                     @RequestParam(defaultValue = "NORMAL") Priority priority) {
+        Order order = orderService.createOrder(clientId,priority);
         return orderMapper.toDto(order);
     }
 
