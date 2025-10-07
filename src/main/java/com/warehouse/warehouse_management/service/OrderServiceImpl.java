@@ -62,7 +62,11 @@ public class OrderServiceImpl implements OrderService {
         } else {
             long newQty = oi.getRequestedQty() + quantity;
             oi.setRequestedQty(newQty);
-            oi.setPrice(calcPrice(item.getUnitPrice(), newQty));
+            if (newQty >= 100) {
+                oi.setPrice(calcPrice(item.getUnitPrice().multiply(DISCOUNT_RATE), newQty));
+            } else {
+                oi.setPrice(calcPrice(item.getUnitPrice(), newQty));
+            }
             oi.setVolume(calcVolume(item.getPackageVolume(), newQty));
         }
 
