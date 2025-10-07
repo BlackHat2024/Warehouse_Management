@@ -101,9 +101,9 @@ public class ManagerController {
     // ---- Deliveries ----
     @PostMapping("/orders/{orderNumber}/schedule")
     @Operation(summary = "Schedule order")
-    public OrderResponse scheduleDelivery(@PathVariable Long orderNumber,
+    public ScheduleDeliveryResponse scheduleDelivery(@PathVariable Long orderNumber,
                                   @Valid @RequestBody ScheduleDeliveryRequest req) {
-        return manager.scheduleDelivery(orderNumber, req.date(), req.truckVins());
+        return manager.scheduleDelivery(orderNumber, req.date());
     }
 
     @GetMapping("/orders/{orderNumber}/available-days")

@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -94,7 +95,7 @@ public class ManagerServiceImpl implements ManagerService {
     @Override
     public void deleteIfQtyZero(Long id) {
         int deleted = items.deleteIfQuantityZero(id);
-        if (deleted == 1) return; // success
+        if (deleted == 1) return;
 
         if (!items.existsById(id)) {
             throw new ItemNotFoundException(id);
@@ -137,7 +138,7 @@ public class ManagerServiceImpl implements ManagerService {
     }
 
     @Override
-    public OrderResponse scheduleDelivery(Long orderNumber, LocalDate date, List<String> truckVins) {
+    public ScheduleDeliveryResponse scheduleDelivery(Long orderNumber, LocalDate date) {
         Order o = orders.findById(orderNumber)
                 .orElseThrow(() -> new BusinessRuleExceptions("Order not found"));
 
@@ -148,26 +149,25 @@ public class ManagerServiceImpl implements ManagerService {
 
         validateBusinessDate(date);
 
-        if (truckVins == null || truckVins.isEmpty())
-            throw new BusinessRuleExceptions("Select at least one truck");
+        List<Truck> free = trucks.findFreeTrucksOn(date, LocalDate.now());
+        if (free.isEmpty())
+            throw new BusinessRuleExceptions("No trucks are available for " + date);
 
-        var uniqueVins = new java.util.LinkedHashSet<>(truckVins);
-        var selected = trucks.findAllByVinIn(uniqueVins);
-        if (selected.size() != uniqueVins.size()) {
-            var found = selected.stream().map(Truck::getVin).collect(java.util.stream.Collectors.toSet());
-            var missing = uniqueVins.stream().filter(v -> !found.contains(v)).toList();
-            throw new BusinessRuleExceptions("Trucks not found: " + String.join(", ", missing));
-        }
-
-        for (Truck t : selected) {
-            if (!t.isActive())
-                throw new BusinessRuleExceptions("Truck " + t.getVin() + " is inactive");
-            if (deliveries.isTruckBooked(date, t.getVin()))
-                throw new BusinessRuleExceptions("Truck " + t.getVin() + " is already booked for " + date);
-        }
-
+        long capacity = 0L;
         long orderVolume = calcOrderVolume(o);
-        long capacity = selected.stream().mapToLong(Truck::getContainerVolume).sum();
+
+        List<Truck> selected = selectTrucksByCapacity(free, orderVolume);
+        if (selected.isEmpty()) {
+            long total = free.stream().mapToLong(t -> t.getContainerVolume() == null ? 0L : t.getContainerVolume()).sum();
+            throw new BusinessRuleExceptions("No combination of trucks can satisfy the volume. Total capacity available: " + total);
+        }
+
+        List<String> truckPlates = selected.stream()
+                .map(Truck::getLicensePlate)
+                .toList();
+
+        capacity = selected.stream().mapToLong(t -> t.getContainerVolume() == null ? 0L : t.getContainerVolume()).sum();
+
         if (capacity < orderVolume)
             throw new BusinessRuleExceptions("Selected trucks capacity (" + capacity + ") is less than order volume (" + orderVolume + ")");
 
@@ -183,6 +183,7 @@ public class ManagerServiceImpl implements ManagerService {
             if (have < need)
                 throw new BusinessRuleExceptions("Insufficient stock for item " + it.getId() + " (" + it.getName() + ")");
         }
+
         for (OrderItem oi : o.getItems()) {
             Item it = oi.getItem();
             long have = it.getQuantity() == null ? 0L : it.getQuantity();
@@ -203,7 +204,7 @@ public class ManagerServiceImpl implements ManagerService {
         o.setStatus(OrderStatus.UNDER_DELIVERY);
         orders.save(o);
 
-        return orderMapper.toDto(orders.findWithAllByOrderNumber(orderNumber));
+        return new ScheduleDeliveryResponse(orderMapper.toDto(orders.findWithAllByOrderNumber(orderNumber)), truckPlates);
     }
 
     @Override
@@ -283,6 +284,86 @@ public class ManagerServiceImpl implements ManagerService {
             total += v;
         }
         return total;
+    }
+
+    private List<Truck> selectTrucksByCapacity(List<Truck> free, long orderVolume) {
+
+        List<Truck> trucks = free.stream()
+                .filter(t -> t.getContainerVolume() != null && t.getContainerVolume() > 0)
+                .sorted(Comparator.comparingLong(Truck::getContainerVolume).reversed())
+                .toList();
+
+        if (trucks.isEmpty()) return List.of();
+
+        if (trucks.size() > 25) return greedyBestFit(trucks, orderVolume);
+
+        List<Truck> best = new ArrayList<>();
+        long[] bestSum = {Long.MAX_VALUE};
+        int[] bestCount = {Integer.MAX_VALUE};
+
+        long totalRemaining = trucks.stream().mapToLong(Truck::getContainerVolume).sum();
+        dfsSelect(0, 0L, 0, new ArrayList<>(), trucks, orderVolume, totalRemaining, best, bestSum, bestCount);
+        return best;
+    }
+
+    private void dfsSelect(int idx, long sum, int cnt, List<Truck> pick,
+                           List<Truck> trucks, long target, long rem,
+                           List<Truck> best, long[] bestSum, int[] bestCount) {
+
+        if (sum >= target) {
+            if (sum < bestSum[0] || (sum == bestSum[0] && cnt < bestCount[0])) {
+                bestSum[0] = sum;
+                bestCount[0] = cnt;
+                best.clear();
+                best.addAll(pick);
+            }
+            return;
+        }
+
+        if (sum + rem < target) return;
+
+        if (bestSum[0] != Long.MAX_VALUE && sum >= bestSum[0]) return;
+
+        if (idx == trucks.size()) return;
+
+        Truck t = trucks.get(idx);
+        long v = t.getContainerVolume() == null ? 0L : t.getContainerVolume();
+
+        pick.add(t);
+        dfsSelect(idx + 1, sum + v, cnt + 1, pick, trucks, target, rem - v, best, bestSum, bestCount);
+        pick.remove(pick.size() - 1);
+
+        dfsSelect(idx + 1, sum, cnt, pick, trucks, target, rem - v, best, bestSum, bestCount);
+    }
+
+    private List<Truck> greedyBestFit(List<Truck> trucks, long orderVolume) {
+        long remaining = orderVolume;
+        List<Truck> chosen = new ArrayList<>();
+
+        List<Truck> pool = new ArrayList<>(trucks);
+        pool.sort(Comparator.comparingLong(Truck::getContainerVolume).reversed());
+
+        while (remaining > 0 && !pool.isEmpty()) {
+            int pickIdx = -1;
+            long pickVol = -1;
+
+            for (int i = 0; i < pool.size(); i++) {
+                long v = pool.get(i).getContainerVolume();
+                if (v <= remaining) { pickIdx = i; pickVol = v; break; }
+            }
+
+            if (pickIdx == -1) {
+                pickIdx = pool.size() - 1;
+                pickVol = pool.get(pickIdx).getContainerVolume();
+            }
+
+            Truck t = pool.remove(pickIdx);
+            chosen.add(t);
+            remaining -= pickVol;
+        }
+
+        long sum = chosen.stream().mapToLong(Truck::getContainerVolume).sum();
+        return (sum >= orderVolume) ? chosen : List.of();
     }
 
 }

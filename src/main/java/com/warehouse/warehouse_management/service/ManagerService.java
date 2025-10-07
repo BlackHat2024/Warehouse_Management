@@ -26,6 +26,6 @@ public interface ManagerService {
     List<TruckDto> listTrucks(boolean onlyActive);
 
     // Delivery
-    OrderResponse scheduleDelivery(Long orderNumber, LocalDate date, List<String> truckVins);
+    ScheduleDeliveryResponse scheduleDelivery(Long orderNumber, LocalDate date);
     AvailableDaysResponse getAvailableDaysForDelivery(Long orderNumber, int days);
 }
