@@ -204,6 +204,9 @@ public class ManagerServiceImpl implements ManagerService {
         selected.forEach(t -> t.setActive(false));
         trucks.saveAll(selected);
 
+        if (isWeekend(date)){
+            o.setTotal(o.getTotal().multiply(java.math.BigDecimal.valueOf(1.05)));
+        }
         o.setDelivery(d);
         o.setStatus(OrderStatus.UNDER_DELIVERY);
         orders.save(o);
@@ -285,8 +288,6 @@ public class ManagerServiceImpl implements ManagerService {
     private void validateBusinessDate(LocalDate date) {
         if (date.isBefore(LocalDate.now()))
             throw new BusinessRuleExceptions("Date must be today or later");
-        if (isWeekend(date))
-            throw new BusinessRuleExceptions("Weekends are off. Pick a weekday.");
     }
 
     private boolean isWeekend(LocalDate d) {
