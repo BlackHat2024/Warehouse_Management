@@ -22,6 +22,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -146,6 +147,22 @@ public class ManagerServiceImpl implements ManagerService {
             throw new BusinessRuleExceptions("Only APPROVED orders can be scheduled");
         if (o.getDelivery() != null)
             throw new BusinessRuleExceptions("Order already has a scheduled delivery");
+
+        List<Long> urgentOrders = orders
+                .findIdsByPriorityAndStatus(Priority.URGENT, OrderStatus.APPROVED)
+                .stream()
+                .filter(id -> !id.equals(orderNumber))
+                .toList();
+        if (!urgentOrders.isEmpty() && o.getPriority() != Priority.URGENT) {
+            int limit = 10;
+            String shown = urgentOrders.stream().limit(limit).map(String::valueOf)
+                    .collect(Collectors.joining(", "));
+            String more  = urgentOrders.size() > limit ? " (+" + (urgentOrders.size() - limit) + " more)" : "";
+            throw new BusinessRuleExceptions(
+                    "Urgent orders must be handled first. Pending URGENT+APPROVED order IDs: [" + shown + "]" + more
+            );
+
+        }
 
         validateBusinessDate(date);
 
