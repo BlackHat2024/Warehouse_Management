@@ -416,9 +416,6 @@ public class ManagerServiceImpl implements ManagerService {
                 Order order = delivery.getOrder();
 
                 LocalDate nextDate = date.plusDays(1);
-                while (isWeekend(nextDate) || !canScheduleOnDate(order, nextDate)) {
-                    nextDate = nextDate.plusDays(1);
-                }
 
                 delivery.setScheduledDate(nextDate);
                 deliveries.save(delivery);
